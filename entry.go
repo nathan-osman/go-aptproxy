@@ -13,16 +13,12 @@ type Entry struct {
 }
 
 // LoadEntry loads an entry from disk.
-func LoadEntry(filename string) (*Entry, error) {
+func (e *Entry) LoadEntry(filename string) error {
 	f, err := os.Open(filename)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	e := &Entry{}
-	if err = json.NewDecoder(f).Decode(e); err != nil {
-		return nil, err
-	}
-	return e, nil
+	return json.NewDecoder(f).Decode(e)
 }
 
 // Save writes the entry to disk.

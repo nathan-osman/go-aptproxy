@@ -3,7 +3,6 @@ package main
 import (
 	"container/list"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"sync"
@@ -27,7 +26,7 @@ type Writer struct {
 	status   Status
 }
 
-func (w *Writer) sendStatus(statusChan chan Status, status Status) {
+func (w *Writer) sendStatus(statusChan chan<- Status, status Status) {
 	statusChan <- status
 }
 
@@ -36,17 +35,16 @@ func (w *Writer) setStatus(status Status) {
 	defer w.mutex.Unlock()
 	w.status = status
 	for e := w.channels.Front(); e != nil; e = e.Next() {
-		go w.sendStatus(e.Value.(chan Status), status)
+		go w.sendStatus(e.Value.(chan<- Status), status)
 	}
 }
 
-// Create a new writer for the given URL. Status information is passed along to
-// subscribed channels. The done channel is used to notify the storage system
-// that the download is complete (either success or an error).
+// NewWriter creates a new writer for the given URL. Status information is
+// passed along to subscribed channels. The done channel is used to notify the
+// storage system that the download is complete (either success or an error).
 func NewWriter(url, jsonFilename, dataFilename string, done chan<- *Writer) *Writer {
 	w := &Writer{
-		channels: make([]chan Status),
-		status:   StatusNone,
+		channels: list.New(),
 	}
 	go func() {
 		r, err := http.Get(url)
@@ -55,8 +53,9 @@ func NewWriter(url, jsonFilename, dataFilename string, done chan<- *Writer) *Wri
 		}
 		defer r.Body.Close()
 		e := &Entry{
-			URL:         url,
-			ContentType: r.Header.Get("Content-Type"),
+			URL:           url,
+			ContentLength: r.ContentLength,
+			ContentType:   r.Header.Get("Content-Type"),
 		}
 		if err = e.Save(jsonFilename); err != nil {
 			goto error
@@ -82,21 +81,23 @@ func NewWriter(url, jsonFilename, dataFilename string, done chan<- *Writer) *Wri
 
 // Subscribe adds a channel to the list to be notified when the writer's status
 // changes. The channel will also immediately receive the current status.
-func (w *Writer) Subscribe(statusChan chan Status) {
+func (w *Writer) Subscribe(statusChan chan<- Status) {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
-	w.channels = append(w.channels, c)
-	w.sendStatus(c, w.status)
+	w.channels.PushBack(statusChan)
+
+	// TODO: is "go" necessary here?
+	go w.sendStatus(statusChan, w.status)
 }
 
-// Unsubscribe a channel from the list to be notified. This may occur when a
-// client cancels a request, for example.
-func (w *Writer) Unsubscribe(statusChan chan Status) {
+// Unsubscribe removes a channel from the list to be notified. This may occur
+// when a client cancels a request, for example.
+func (w *Writer) Unsubscribe(statusChan chan<- Status) {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
-	for i, c := range w.channels {
-		if c == statusChan {
-			w.channels = append(w.channels[:i], w.channels[i+1:]...)
+	for e := w.channels.Front(); e != nil; e = e.Next() {
+		if e.Value.(chan<- Status) == statusChan {
+			w.channels.Remove(e)
 		}
 	}
 }

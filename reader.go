@@ -28,7 +28,7 @@ func NewReader(writer *Writer, jsonFilename, dataFilename string) *Reader {
 		status:        StatusNone,
 		statusChanged: make(chan Status),
 	}
-	if r.writer {
+	if r.writer != nil {
 		r.writer.Subscribe(r.statusChanged)
 	}
 	return r
@@ -76,7 +76,7 @@ func (r *Reader) Read(p []byte) (n int, err error) {
 		err = errors.New("writer error")
 		return
 	case StatusDone:
-		err = os.EOF
+		err = io.EOF
 		return
 	default:
 		for n < len(p) {
@@ -84,7 +84,7 @@ func (r *Reader) Read(p []byte) (n int, err error) {
 			bytesRead, err = r.file.Read(p[n:])
 			n += bytesRead
 			if err != nil {
-				if err == os.EOF && r.writer != nil {
+				if err == io.EOF && r.writer != nil {
 					err = nil
 					var watcher *fsnotify.Watcher
 					watcher, err = fsnotify.NewWatcher()

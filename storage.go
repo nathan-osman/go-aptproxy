@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/md5"
 	"fmt"
-	"io"
 	"os"
 	"path"
 	"sync"
@@ -13,27 +12,46 @@ import (
 // avoid race conditions, adding and testing for entries in the cache are
 // protected by a mutex.
 type Storage struct {
-	Directory string
-	mutex     sync.Mutex
+	directory  string
+	writers    map[string]*Writer
+	writerDone chan *Writer
+	mutex      sync.Mutex
 }
 
-// GetReader returns an io.Reader for the specified URL. If the file does not
+// NewStorage creates a new storage manager.
+func NewStorage(directory string) *Storage {
+	return &Storage{
+		directory:  directory,
+		writers:    make(map[string]*Writer),
+		writerDone: make(chan *Writer),
+	}
+}
+
+// GetReader returns a *Reader for the specified URL. If the file does not
 // exist, both a writer (for downloading the file) and a reader are created.
-func (s *Storage) GetReader(url string) (io.Reader, error) {
+func (s *Storage) GetReader(url string) (*Reader, error) {
 	var (
 		hash         = string(md5.Sum([]byte(url)))
-		jsonFilename = path.Join(s.Directory, fmt.Sprintf("%s.json", hash))
-		dataFilename = path.Join(s.Directory, fmt.Sprintf("%s.data", hash))
+		jsonFilename = path.Join(s.directory, fmt.Sprintf("%s.json", hash))
+		dataFilename = path.Join(s.directory, fmt.Sprintf("%s.data", hash))
 	)
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	i, err := os.Stat(jsonFilename)
-	if err != nil {
-		if os.IsNotExist(err) {
-			NewWriter(url, jsonFilename, dataFilename)
+	w, ok := s.writers[hash]
+	if ok {
+		return NewReader(w, jsonFilename, dataFilename), nil
+	} else {
+		_, err := os.Stat(jsonFilename)
+		if err != nil {
+			if os.IsNotExist(err) {
+				w = NewWriter(url, jsonFilename, dataFilename, s.writerDone)
+				s.writers[hash] = w
+				return NewReader(w, jsonFilename, dataFilename), nil
+			} else {
+				return nil, err
+			}
 		} else {
-			return nil, err
+			return NewReader(nil, jsonFilename, dataFilename), nil
 		}
 	}
-	return NewReader(url, jsonFilename, dataFilename)
 }
