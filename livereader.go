@@ -72,17 +72,18 @@ loop:
 					l.err = err
 					break loop
 				}
-				for {
-					select {
-					case e := <-watcher.Events:
-						if e.Op&fsnotify.Write == fsnotify.Write {
-							continue loop
-						}
-					case err = <-l.done:
-						l.err = err
-						l.eof = true
+			}
+			for {
+				select {
+				case e := <-watcher.Events:
+					if e.Op&fsnotify.Write != fsnotify.Write {
+						continue
 					}
+				case err = <-l.done:
+					l.err = err
+					l.eof = true
 				}
+				continue loop
 			}
 		}
 	}
@@ -91,6 +92,8 @@ loop:
 
 // Close frees resources associated with the reader.
 func (l *LiveReader) Close() error {
-	l.file.Close()
+	if l.file != nil {
+		l.file.Close()
+	}
 	return nil
 }

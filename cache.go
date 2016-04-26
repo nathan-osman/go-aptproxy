@@ -20,11 +20,14 @@ type Cache struct {
 }
 
 // NewCache creates a new cache in the specified directory.
-func NewCache(directory string) *Cache {
+func NewCache(directory string) (*Cache, error) {
+	if err := os.MkdirAll(directory, 0775); err != nil {
+		return nil, err
+	}
 	return &Cache{
 		directory:   directory,
 		downloaders: make(map[string]*Downloader),
-	}
+	}, nil
 }
 
 // GetReader obtains an io.Reader for the specified rawurl. If a downloader

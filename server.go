@@ -79,9 +79,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 // NewServer creates a new server.
 func NewServer(addr, directory string) (*Server, error) {
+	c, err := NewCache(directory)
+	if err != nil {
+		return nil, err
+	}
 	s := &Server{
 		server: server.New(addr),
-		cache:  NewCache(directory),
+		cache:  c,
 	}
 	s.server.Handler = s
 	return s, nil
@@ -95,4 +99,5 @@ func (s *Server) Start() error {
 // Stop shuts down the server.
 func (s *Server) Stop() {
 	s.server.Stop()
+	s.cache.Close()
 }
