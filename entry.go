@@ -5,19 +5,22 @@ import (
 	"os"
 )
 
-// Entry represents a file in storage.
+// Entry represents an individual item in the cache.
 type Entry struct {
 	URL           string `json:"url"`
-	ContentLength int64  `json:"content_length"`
+	Complete      bool   `json:"complete"`
+	ContentLength string `json:"content_length"`
 	ContentType   string `json:"content_type"`
+	LastModified  string `json:"last_modified"`
 }
 
-// LoadEntry loads an entry from disk.
-func (e *Entry) LoadEntry(filename string) error {
+// Load reads the entry from disk.
+func (e *Entry) Load(filename string) error {
 	f, err := os.Open(filename)
 	if err != nil {
 		return err
 	}
+	defer f.Close()
 	return json.NewDecoder(f).Decode(e)
 }
 
@@ -27,5 +30,6 @@ func (e *Entry) Save(filename string) error {
 	if err != nil {
 		return err
 	}
+	defer f.Close()
 	return json.NewEncoder(f).Encode(e)
 }
