@@ -26,7 +26,6 @@ func rewrite(rawurl string) string {
 	}
 	if strings.HasSuffix(u.Host, ".archive.ubuntu.com") {
 		u.Host = "archive.ubuntu.com"
-		u.Path = "/ubuntu/"
 		rawurl = u.String()
 	}
 	return rawurl
