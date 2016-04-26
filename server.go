@@ -55,7 +55,7 @@ func (s *Server) writeHeaders(w http.ResponseWriter, e *Entry) {
 // served with the storage backend and every other request is (out of
 // necessity) rejected since it can't be cached.
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if req.Method == http.MethodGet {
+	if req.Method == "GET" {
 		r, eChan, err := s.cache.GetReader(req.RequestURI)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
