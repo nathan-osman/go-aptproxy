@@ -58,12 +58,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		r, eChan, err := s.cache.GetReader(rewrite(req.RequestURI))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Println("[ERR]", err)
 			return
 		}
 		defer r.Close()
 		e := <-eChan
 		if e == nil {
 			http.Error(w, "header retrieval error", http.StatusInternalServerError)
+			log.Println("[ERR] header retrieval")
 			return
 		}
 		s.writeHeaders(w, e)
