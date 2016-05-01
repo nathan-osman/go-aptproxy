@@ -11,7 +11,7 @@ import (
 func main() {
 	var (
 		addr      = flag.String("addr", ":8000", "`host:port` to listen on")
-		directory = flag.String("directory", "/var/lib/go-aptproxy", "`directory` used for storing packages")
+		directory = flag.String("directory", "/var/cache/go-aptproxy", "`directory` used for storing packages")
 	)
 	flag.Parse()
 	s, err := NewServer(*addr, *directory)
