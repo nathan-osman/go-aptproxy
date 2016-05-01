@@ -9,41 +9,29 @@ import (
 
 // liveReader reads a file from disk, synchronizing reads with a downloader.
 type liveReader struct {
-	downloader *downloader
-	file       *os.File
-	watcher    *fsnotify.Watcher
-	entry      *Entry
-	done       chan error
-	err        error
-	eof        bool
+	downloader   *downloader
+	dataFilename string
+	file         *os.File
+	entry        *Entry
+	done         chan error
+	err          error
+	eof          bool
 }
 
 // newLiveReader creates a reader from the provided downloader and data
 // file. fsnotify is used to watch for writes to the file to avoid using a
 // spinloop. Invoking this function assumes the existence of the data file.
 func newLiveReader(d *downloader, dataFilename string) (*liveReader, error) {
-	f, err := os.Open(dataFilename)
-	if err != nil {
-		return nil, err
-	}
-	w, err := fsnotify.NewWatcher()
-	if err != nil {
-		return nil, err
-	}
-	if err = w.Add(dataFilename); err != nil {
-		return nil, err
-	}
 	l := &liveReader{
-		downloader: d,
-		file:       f,
-		watcher:    w,
-		done:       make(chan error),
+		downloader:   d,
+		dataFilename: dataFilename,
+		done:         make(chan error),
 	}
 	go func() {
 		defer close(l.done)
 		l.done <- d.WaitForDone()
 	}()
-	return l, err
+	return l, nil
 }
 
 // Read attempts to read as much data as possible into the provided buffer.
@@ -54,7 +42,25 @@ func (l *liveReader) Read(p []byte) (int, error) {
 	if l.err != nil {
 		return 0, l.err
 	}
+	if l.file == nil {
+		f, err := os.Open(l.dataFilename)
+		if err != nil {
+			l.err = err
+			return 0, l.err
+		}
+		l.file = f
+	}
 	bytesRead := 0
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		l.err = err
+		return 0, l.err
+	}
+	defer watcher.Close()
+	if err := watcher.Add(l.dataFilename); err != nil {
+		l.err = err
+		return 0, l.err
+	}
 loop:
 	for bytesRead < len(p) {
 		n, err := l.file.Read(p[bytesRead:])
@@ -66,7 +72,7 @@ loop:
 			}
 			for {
 				select {
-				case e := <-l.watcher.Events:
+				case e := <-watcher.Events:
 					if e.Op&fsnotify.Write != fsnotify.Write {
 						continue
 					}
@@ -83,7 +89,10 @@ loop:
 
 // Close attempts to close the data file (if opened).
 func (l *liveReader) Close() error {
-	return l.file.Close()
+	if l.file != nil {
+		return l.file.Close()
+	}
+	return nil
 }
 
 // GetEntry returns the Entry associated with the file, blocking until either

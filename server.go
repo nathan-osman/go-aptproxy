@@ -56,6 +56,7 @@ func (s *Server) writeHeaders(w http.ResponseWriter, e *cache.Entry) {
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
 	r, err := s.cache.GetReader(rewrite(req.RequestURI))
 	if err != nil {
