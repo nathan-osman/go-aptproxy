@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/hectane/go-asyncserver"
+	"github.com/nathan-osman/go-aptproxy/cache"
 
 	"io"
 	"log"
@@ -16,7 +17,7 @@ import (
 // needless duplication.
 type Server struct {
 	server *server.AsyncServer
-	cache  *Cache
+	cache  *cache.Cache
 }
 
 func rewrite(rawurl string) string {
@@ -31,7 +32,7 @@ func rewrite(rawurl string) string {
 	return rawurl
 }
 
-func (s *Server) writeHeaders(w http.ResponseWriter, e *Entry) {
+func (s *Server) writeHeaders(w http.ResponseWriter, e *cache.Entry) {
 	if e.ContentType != "" {
 		w.Header().Set("Content-Type", e.ContentType)
 	} else {
@@ -48,39 +49,37 @@ func (s *Server) writeHeaders(w http.ResponseWriter, e *Entry) {
 }
 
 // TODO: support for HEAD requests
-// TODO: find a reasonable way for getting errors from eChan
 
 // ServeHTTP processes an incoming request to the proxy. GET requests are
 // served with the storage backend and every other request is (out of
 // necessity) rejected since it can't be cached.
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if req.Method == "GET" {
-		r, eChan, err := s.cache.GetReader(rewrite(req.RequestURI))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			log.Println("[ERR]", err)
-			return
-		}
-		defer r.Close()
-		e := <-eChan
-		if e == nil {
-			http.Error(w, "header retrieval error", http.StatusInternalServerError)
-			log.Println("[ERR] header retrieval")
-			return
-		}
-		s.writeHeaders(w, e)
-		_, err = io.Copy(w, r)
-		if err != nil {
-			log.Println("[ERR]", err)
-		}
-	} else {
+	if req.Method != "GET" {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+	r, err := s.cache.GetReader(rewrite(req.RequestURI))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println("[ERR]", err)
+		return
+	}
+	defer r.Close()
+	e, err := r.GetEntry()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println("[ERR]", err)
+		return
+	}
+	s.writeHeaders(w, e)
+	_, err = io.Copy(w, r)
+	if err != nil {
+		log.Println("[ERR]", err)
 	}
 }
 
 // NewServer creates a new server.
 func NewServer(addr, directory string) (*Server, error) {
-	c, err := NewCache(directory)
+	c, err := cache.NewCache(directory)
 	if err != nil {
 		return nil, err
 	}

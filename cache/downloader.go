@@ -1,4 +1,4 @@
-package main
+package cache
 
 import (
 	"errors"
@@ -9,17 +9,17 @@ import (
 	"sync"
 )
 
-// Downloader attempts to download a file from a remote URL.
-type Downloader struct {
+// downloader attempts to download a file from a remote URL.
+type downloader struct {
 	doneMutex  sync.Mutex
 	err        error
 	entry      *Entry
 	entryMutex sync.Mutex
 }
 
-// NewDownloader creates a new downloader.
-func NewDownloader(rawurl, jsonFilename, dataFilename string) *Downloader {
-	d := &Downloader{}
+// newDownloader creates a new downloader.
+func newDownloader(rawurl, jsonFilename, dataFilename string) *downloader {
+	d := &downloader{}
 	d.doneMutex.Lock()
 	d.entryMutex.Lock()
 	go func() {
@@ -72,16 +72,15 @@ func NewDownloader(rawurl, jsonFilename, dataFilename string) *Downloader {
 	return d
 }
 
-// GetEntry waits until the Entry associated with the download is available.
-// This call will block until the entry is available or an error occurs.
-func (d *Downloader) GetEntry() *Entry {
+// GetEntry retrieves the entry associated with the download.
+func (d *downloader) GetEntry() (*Entry, error) {
 	d.entryMutex.Lock()
 	defer d.entryMutex.Unlock()
-	return d.entry
+	return d.entry, d.err
 }
 
-// Wait will block until the download completes.
-func (d *Downloader) Wait() error {
+// WaitForDone will block until the download completes.
+func (d *downloader) WaitForDone() error {
 	d.doneMutex.Lock()
 	defer d.doneMutex.Unlock()
 	return d.err
