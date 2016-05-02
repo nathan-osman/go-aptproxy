@@ -3,6 +3,13 @@
 This handly little proxy server includes the following features:
 
 - avoids duplication of packages fetched from different mirrors
-- provides the ability to "seed" the proxy
+- provides a built-in mDNS server to advertise on the local network
+- fully compatible with the `squid-deb-proxy-client` package
 
-TODO
+### Usage
+
+The program is run as follows:
+
+    go-aptproxy [-directory DIR] [-host HOST] [-port PORT]
+
+By default, go-aptproxy listens on `0.0.0.0:8000` and uses `/var/cache/go-aptproxy` for storing the cached files.
