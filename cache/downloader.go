@@ -1,13 +1,22 @@
 package cache
 
 import (
-	"errors"
 	"io"
 	"net/http"
 	"os"
 	"strconv"
 	"sync"
 )
+
+// DownloadError conveys information about a download request that failed.
+type DownloadError struct {
+	Status string
+}
+
+// Error returns a description of the error.
+func (d *DownloadError) Error() string {
+	return d.Status
+}
 
 // downloader attempts to download a file from a remote URL.
 type downloader struct {
@@ -40,7 +49,9 @@ func newDownloader(rawurl, jsonFilename, dataFilename string) *downloader {
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode != 200 {
-			d.err = errors.New(resp.Status)
+			d.err = &DownloadError{
+				Status: resp.Status,
+			}
 			return
 		}
 		f, err := os.Create(dataFilename)

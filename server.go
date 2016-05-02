@@ -48,8 +48,6 @@ func (s *Server) writeHeaders(w http.ResponseWriter, e *cache.Entry) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// TODO: support for HEAD requests
-
 // ServeHTTP processes an incoming request to the proxy. GET requests are
 // served with the storage backend and every other request is (out of
 // necessity) rejected since it can't be cached.
@@ -67,7 +65,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer r.Close()
 	e, err := r.GetEntry()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		if dErr, ok := err.(*cache.DownloadError); ok {
+			http.Error(w, dErr.Error(), http.StatusServiceUnavailable)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		log.Println("[ERR]", err)
 		return
 	}
