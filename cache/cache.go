@@ -6,9 +6,13 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime"
+	"net/http"
 	"os"
 	"path"
+	"strconv"
 	"sync"
+	"time"
 )
 
 // Reader is a generic interface for reading cache entries either from disk or
@@ -37,17 +41,21 @@ func NewCache(directory string) (*Cache, error) {
 	}, nil
 }
 
+// getFilenames returns the filenames for the JSON and data files from a URL.
+func (c *Cache) getFilenames(rawurl string) (hash, jsonFilename, dataFilename string) {
+	b := md5.Sum([]byte(rawurl))
+	hash = hex.EncodeToString(b[:])
+	jsonFilename = path.Join(c.directory, fmt.Sprintf("%s.json", hash))
+	dataFilename = path.Join(c.directory, fmt.Sprintf("%s.data", hash))
+	return
+}
+
 // GetReader obtains a Reader for the specified rawurl. If a downloader
 // currently exists for the URL, a live reader is created and connected to it.
 // If the URL exists in the cache, it is read using the standard file API. If
 // not, a downloader and live reader are created.
 func (c *Cache) GetReader(rawurl string) (Reader, error) {
-	var (
-		b            = md5.Sum([]byte(rawurl))
-		hash         = hex.EncodeToString(b[:])
-		jsonFilename = path.Join(c.directory, fmt.Sprintf("%s.json", hash))
-		dataFilename = path.Join(c.directory, fmt.Sprintf("%s.data", hash))
-	)
+	hash, jsonFilename, dataFilename := c.getFilenames(rawurl)
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	d, ok := c.downloaders[hash]
@@ -82,8 +90,30 @@ func (c *Cache) GetReader(rawurl string) (Reader, error) {
 	return newLiveReader(d, dataFilename)
 }
 
+// Insert adds an item into the cache.
+func (c *Cache) Insert(rawurl string, r io.Reader) error {
+	_, jsonFilename, dataFilename := c.getFilenames(rawurl)
+	f, err := os.Open(dataFilename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	n, err := io.Copy(f, r)
+	if err != nil {
+		return err
+	}
+	e := &Entry{
+		URL:           rawurl,
+		Complete:      true,
+		ContentLength: strconv.FormatInt(n, 10),
+		ContentType:   mime.TypeByExtension(rawurl),
+		LastModified:  time.Now().Format(http.TimeFormat),
+	}
+	return e.Save(jsonFilename)
+}
+
 // TODO: implement some form of "safe abort" for downloads so that the entire
-// application doesn't end up spinning its tires waiting for downloads to end
+// application doesn't end up spinning its tires waiting for downloads to end.
 
 // Close waits for all downloaders to complete before shutting down.
 func (c *Cache) Close() {
