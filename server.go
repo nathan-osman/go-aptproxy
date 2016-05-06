@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/hectane/go-asyncserver"
 	"github.com/nathan-osman/go-aptproxy/cache"
+	"github.com/pquerna/cachecontrol/cacheobject"
 
 	"io"
 	"log"
@@ -32,6 +33,16 @@ func rewrite(rawurl string) string {
 	return rawurl
 }
 
+func shouldForce(req *http.Request) bool {
+	d, err := cacheobject.ParseRequestCacheControl(req.Header.Get("Cache-Control"))
+	if err != nil {
+		if d.MaxAge == 0 || d.NoCache {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Server) writeHeaders(w http.ResponseWriter, e *cache.Entry) {
 	if e.ContentType != "" {
 		w.Header().Set("Content-Type", e.ContentType)
@@ -56,7 +67,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	r, err := s.cache.GetReader(rewrite(req.RequestURI), false)
+	r, err := s.cache.GetReader(rewrite(req.RequestURI), shouldForce(req))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		log.Println("[ERR]", err)
