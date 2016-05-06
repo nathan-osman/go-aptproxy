@@ -56,7 +56,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	r, err := s.cache.GetReader(rewrite(req.RequestURI))
+	r, err := s.cache.GetReader(rewrite(req.RequestURI), false)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		log.Println("[ERR]", err)
