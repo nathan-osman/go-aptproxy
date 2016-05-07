@@ -72,7 +72,9 @@ func (c *Cache) GetReader(rawurl string, maxAge time.Duration) (Reader, error) {
 			}
 			e, _ := r.GetEntry()
 			lastModified, _ := time.Parse(http.TimeFormat, e.LastModified)
-			if lastModified.Before(time.Now().Add(maxAge)) || e.Complete {
+			if e.Complete &&
+				(maxAge == -1 ||
+					lastModified.Before(time.Now().Add(maxAge))) {
 				log.Println("[HIT]", rawurl)
 				return r, nil
 			}

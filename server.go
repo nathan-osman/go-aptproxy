@@ -36,10 +36,13 @@ func rewrite(rawurl string) string {
 
 func maxAge(req *http.Request) time.Duration {
 	d, err := cacheobject.ParseRequestCacheControl(req.Header.Get("Cache-Control"))
-	if err != nil {
+	if err == nil || d.NoCache {
+		return 0
+	}
+	if d.MaxAge > 0 {
 		return time.Duration(d.MaxAge)
 	}
-	return 0
+	return -1
 }
 
 func (s *Server) writeHeaders(w http.ResponseWriter, e *cache.Entry) {
