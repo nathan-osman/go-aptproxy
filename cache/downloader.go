@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 )
 
 // DownloadError conveys information about a download request that failed.
@@ -65,6 +66,12 @@ func newDownloader(rawurl, jsonFilename, dataFilename string) *downloader {
 			ContentLength: strconv.FormatInt(resp.ContentLength, 10),
 			ContentType:   resp.Header.Get("Content-Type"),
 			LastModified:  resp.Header.Get("Last-Modified"),
+		}
+		if d.entry.ContentType == "" {
+			d.entry.ContentType = "application/octet-stream"
+		}
+		if d.entry.LastModified == "" {
+			d.entry.LastModified = time.Now().Format(http.TimeFormat)
 		}
 		if err = d.entry.Save(jsonFilename); err != nil {
 			d.err = err

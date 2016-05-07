@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Server acts as an HTTP proxy, returning entries from the cache whenever
@@ -33,29 +34,21 @@ func rewrite(rawurl string) string {
 	return rawurl
 }
 
-func shouldForce(req *http.Request) bool {
+func maxAge(req *http.Request) time.Duration {
 	d, err := cacheobject.ParseRequestCacheControl(req.Header.Get("Cache-Control"))
 	if err != nil {
-		if d.MaxAge == 0 || d.NoCache {
-			return true
-		}
+		return time.Duration(d.MaxAge)
 	}
-	return false
+	return 0
 }
 
 func (s *Server) writeHeaders(w http.ResponseWriter, e *cache.Entry) {
-	if e.ContentType != "" {
-		w.Header().Set("Content-Type", e.ContentType)
-	} else {
-		w.Header().Set("Content-Type", "application/octet-stream")
-	}
 	l, err := strconv.ParseInt(e.ContentLength, 10, 64)
 	if err == nil && l >= 0 {
 		w.Header().Set("Content-Length", e.ContentLength)
 	}
-	if e.LastModified != "" {
-		w.Header().Set("Last-Modified", e.LastModified)
-	}
+	w.Header().Set("Content-Type", e.ContentType)
+	w.Header().Set("Last-Modified", e.LastModified)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -67,7 +60,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	r, err := s.cache.GetReader(rewrite(req.RequestURI), shouldForce(req))
+	r, err := s.cache.GetReader(rewrite(req.RequestURI), maxAge(req))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		log.Println("[ERR]", err)

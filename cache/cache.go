@@ -53,9 +53,8 @@ func (c *Cache) getFilenames(rawurl string) (hash, jsonFilename, dataFilename st
 // GetReader obtains a Reader for the specified rawurl. If a downloader
 // currently exists for the URL, a live reader is created and connected to it.
 // If the URL exists in the cache, it is read using the standard file API. If
-// not, a downloader and live reader are created. The force parameter can be
-// used to force a new download to be created.
-func (c *Cache) GetReader(rawurl string, force bool) (Reader, error) {
+// not, a downloader and live reader are created.
+func (c *Cache) GetReader(rawurl string, maxAge time.Duration) (Reader, error) {
 	hash, jsonFilename, dataFilename := c.getFilenames(rawurl)
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -66,12 +65,14 @@ func (c *Cache) GetReader(rawurl string, force bool) (Reader, error) {
 			if !os.IsNotExist(err) {
 				return nil, err
 			}
-		} else if !force {
+		} else {
 			r, err := newDiskReader(jsonFilename, dataFilename)
 			if err != nil {
 				return nil, err
 			}
-			if e, _ := r.GetEntry(); e.Complete {
+			e, _ := r.GetEntry()
+			lastModified, _ := time.Parse(http.TimeFormat, e.LastModified)
+			if lastModified.Before(time.Now().Add(maxAge)) || e.Complete {
 				log.Println("[HIT]", rawurl)
 				return r, nil
 			}
